@@ -1,0 +1,881 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Search, ShoppingCart, PlusCircle, Monitor, Home, X, 
+  ChevronRight, ChevronLeft, User, Package, Sparkles, Heart, Moon, Sun, ArrowRight,
+  ShieldCheck, Users, Lock, Star, MapPin, BadgeCheck, Gem, Gavel,
+  Rocket, Award
+} from 'lucide-react';
+
+// --- AUDIO SYNTHESIZER: MECHANICAL KEYBOARD SOUNDS ---
+let audioCtx = null;
+const playSwitchSound = (type = 'brown') => {
+  try {
+    if (!audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContext();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const t = audioCtx.currentTime;
+
+    const thock = audioCtx.createOscillator();
+    const thockGain = audioCtx.createGain();
+    thock.type = 'sine';
+    thock.connect(thockGain);
+    thockGain.connect(audioCtx.destination);
+
+    const tick = audioCtx.createOscillator();
+    const tickGain = audioCtx.createGain();
+    tick.type = 'square';
+    tick.connect(tickGain);
+    tickGain.connect(audioCtx.destination);
+
+    if (type === 'blue') {
+      tick.frequency.setValueAtTime(1500, t);
+      tick.frequency.exponentialRampToValueAtTime(100, t + 0.02);
+      tickGain.gain.setValueAtTime(0.15, t);
+      tickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+      
+      thock.frequency.setValueAtTime(300, t);
+      thock.frequency.exponentialRampToValueAtTime(50, t + 0.04);
+      thockGain.gain.setValueAtTime(0.3, t);
+      thockGain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    } else if (type === 'red') {
+      tickGain.gain.setValueAtTime(0, t); 
+      thock.frequency.setValueAtTime(200, t);
+      thock.frequency.exponentialRampToValueAtTime(40, t + 0.04);
+      thockGain.gain.setValueAtTime(0.2, t);
+      thockGain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    } else if (type === 'black') {
+      tickGain.gain.setValueAtTime(0, t);
+      thock.frequency.setValueAtTime(150, t);
+      thock.frequency.exponentialRampToValueAtTime(30, t + 0.05);
+      thockGain.gain.setValueAtTime(0.4, t);
+      thockGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    } else {
+      tick.frequency.setValueAtTime(800, t);
+      tick.frequency.exponentialRampToValueAtTime(100, t + 0.03);
+      tickGain.gain.setValueAtTime(0.05, t);
+      tickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+      
+      thock.frequency.setValueAtTime(250, t);
+      thock.frequency.exponentialRampToValueAtTime(50, t + 0.04);
+      thockGain.gain.setValueAtTime(0.3, t);
+      thockGain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    }
+
+    tick.start(t); tick.stop(t + 0.05);
+    thock.start(t); thock.stop(t + 0.06);
+  } catch(e) { console.log("Audio not supported"); }
+};
+
+// Global Sound Wrapper
+const withSound = (action, switchType = 'brown') => (e) => {
+  playSwitchSound(switchType);
+  if (action) action(e);
+};
+
+// Global Scroll Helper
+const scrollContainer = (ref, direction) => {
+  if (ref.current) {
+    const scrollAmount = direction === 'left' ? -350 : 350;
+    ref.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+  }
+};
+
+// --- SAFE IMAGE HELPER ---
+const getSafeImages = (id) => [
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=800&h=800&q=80`,
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=800&h=800&q=80`,
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=800&h=800&q=80`
+];
+
+// --- MOCK DATA ---
+const initialProducts = [
+  { id: 1, title: "Kreo Hive Mechanical Keyboard", price: 3499, category: "Keyboards", condition: "New", seller: "KreoOfficial", images: getSafeImages("1618384887929-16ec33fab9ef"), description: "The aesthetic Kreo Hive with Outemu Red linear switches. Hot-swappable, per-key RGB, and a transparent casing that screams Gen-Z vibe." },
+  { id: 2, title: "Keychron Q1 Pro Wireless", price: 14999, category: "Keyboards", condition: "Like New", seller: "TechVibes99", images: getSafeImages("1595225476474-87563907a212"), description: "Fully assembled, banana switches. Used for a week, immaculate vibes. Comes with original coiled cable." },
+  { id: 3, title: "LG 34\" UltraWide Monitor", price: 29999, category: "Monitors", condition: "Good", seller: "DeskSpaces", images: getSafeImages("1527443224154-c4a3942d3acf"), description: "God-tier ultrawide for productivity and gaming. Screen is absolutely flawless." },
+  { id: 4, title: "Walnut Desk Shelf", price: 18000, category: "Accessories", condition: "Excellent", seller: "WoodWorkerMac", images: getSafeImages("1499951360447-b19be8fe80f5"), description: "Elevates the monitor and hides the mess. Solid walnut wood. Absolute setup essential." },
+  { id: 5, title: "Logitech MX Master 3S", price: 7999, category: "Mice", condition: "New", seller: "ClickySwitch", images: getSafeImages("1615663245857-ac93bb7c39e7"), description: "Unopened. Bought by mistake. The absolute GOAT of productivity mice." },
+  { id: 6, title: "Custom Coiled Aviator Cable", price: 2500, category: "Customization", condition: "New", seller: "CableModder", images: getSafeImages("1518770660439-4636190af475"), description: "USB-C to USB-A coiled tech cable with a heavy-duty metal aviator connector." },
+  { id: 7, title: "Grovemade Wool Desk Pad", price: 3999, category: "Accessories", condition: "Good", seller: "AestheticSetup", images: getSafeImages("1593640408182-31c70c8268f5"), description: "Premium merino wool. Adds warmth and texture to any desk." },
+  { id: 8, title: "Elgato Wave:3 Microphone", price: 9999, category: "Audio", condition: "Like New", seller: "StreamerBoy", images: getSafeImages("1590602847861-f357a9332bbc"), description: "Perfect for streaming or Zoom calls. Comes with the original stand and a pop filter." },
+  { id: 9, title: "Govee Glide Hexa Light Panels", price: 11999, category: "Lighting", condition: "New", seller: "RgbEnthusiast", images: getSafeImages("1550745165-9bc0b252726f"), description: "Box opened but panels never mounted. Complete set of 10 with all adhesives intact." },
+  { id: 10, title: "Sony WH-1000XM5", price: 24999, category: "Audio", condition: "Like New", seller: "Audiophile", images: getSafeImages("1618366712010-f4ae9c647dcb"), description: "Incredible noise cancellation. Worn maybe three times." }
+];
+
+const rareItems = [
+  { id: 101, title: "TGR Jane V2 CE Keyboard", currentBid: 350000, endsIn: "02h 15m 30s", bids: 42, image: "https://images.unsplash.com/photo-1595225476474-87563907a212?auto=format&fit=crop&w=800&q=80", description: "The holy grail of custom mechanical keyboards. Pristine condition, unbuilt." },
+  { id: 102, title: "Sealed Keycult No. 1/65", currentBid: 280000, endsIn: "05h 42m 10s", bids: 28, image: "https://images.unsplash.com/photo-1600465224376-857c50a11fc5?auto=format&fit=crop&w=800&q=80", description: "Black and Brass unbuilt kit. Comes with the original authenticity card." }
+];
+
+const testimonials = [
+  { id: 1, name: "Sarah Jenkins", handle: "@sarahcodes", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah&backgroundColor=e0e5ec", text: "Got my Kreo Hive for a steal. The escrow payment made me feel super safe. Best marketplace hands down.", rating: 5 },
+  { id: 2, name: "Marcus Thorne", handle: "@marcus_wfh", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus&backgroundColor=e0e5ec", text: "Sold my ultrawide monitor in two days. The community here actually knows what this gear is worth. Zero lowballers.", rating: 5 },
+  { id: 3, name: "Elena Rodriguez", handle: "@elenadesks", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Elena&backgroundColor=e0e5ec", text: "The aesthetic of this site matches the setups we buy. Found a gorgeous walnut desk shelf in perfect condition.", rating: 5 }
+];
+
+const categories = ["All", "Keyboards", "Monitors", "Customization", "Audio", "Accessories", "Lighting"];
+
+
+// --- EXTACTED COMPONENTS ---
+const TopNav = ({ view, setView, searchQuery, setSearchQuery, isDark, setIsDark }) => (
+  <nav className="relative z-40 bg-white/20 dark:bg-slate-900/40 backdrop-blur-xl border-b border-white/30 dark:border-slate-700/30 sticky top-0 px-4 sm:px-8 py-3 flex justify-between items-center shadow-sm transition-colors duration-500 gap-4">
+    <div className="flex items-center cursor-pointer gap-2 group flex-shrink-0" onClick={withSound(() => setView('home'))}>
+      <div className="bg-gradient-to-tr from-pink-500 to-cyan-500 p-2 rounded-2xl group-hover:rotate-12 transition-transform">
+        <Monitor className="h-6 w-6 text-white" />
+      </div>
+      <span className="font-black text-2xl tracking-tighter text-slate-800 dark:text-white hidden lg:block">
+        Setup<span className="text-pink-500">Market</span>
+      </span>
+    </div>
+
+    <div className="flex-1 max-w-2xl hidden sm:block">
+      <div className="relative group w-full">
+        <Search className="absolute inset-y-0 left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
+        <input
+          type="text"
+          className="w-full pl-12 pr-4 py-2.5 rounded-full neumo-in text-slate-800 dark:text-white outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500 font-bold"
+          placeholder="Search keyboards, desks, keycaps..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            if(view !== 'search') setView('search'); 
+          }}
+        />
+      </div>
+    </div>
+
+    <button onClick={withSound(() => setIsDark(!isDark), 'blue')} className="flex neumo-out p-3 rounded-full transition-all text-slate-600 dark:text-slate-300 hover:text-pink-500 flex-shrink-0 ml-auto sm:ml-0">
+      {isDark ? <Sun className="h-6 w-6 text-yellow-400" /> : <Moon className="h-6 w-6 text-indigo-500" />}
+    </button>
+  </nav>
+);
+
+const SwitchTester = () => (
+  <div className="bg-white/30 dark:bg-slate-800/30 backdrop-blur-xl rounded-[3rem] p-8 border border-white/50 dark:border-slate-700/50 shadow-xl mb-24 max-w-4xl mx-auto text-center">
+    <h2 className="text-3xl font-black text-slate-800 dark:text-white mb-2">Switch Sound Tester 🎹</h2>
+    <p className="text-slate-600 dark:text-slate-400 font-bold mb-8">Click to hear the difference between mechanical switch types before you buy.</p>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <button onClick={withSound(null, 'red')} className="neumo-out flex flex-col items-center justify-center p-6 rounded-2xl hover:text-red-500 transition-colors group">
+        <div className="w-12 h-12 bg-red-500 rounded-lg shadow-inner mb-3 group-hover:-translate-y-1 transition-transform"></div>
+        <span className="font-black text-slate-800 dark:text-white">Linear Red</span>
+        <span className="text-xs text-slate-500 font-bold mt-1">Quiet & Smooth</span>
+      </button>
+      <button onClick={withSound(null, 'brown')} className="neumo-out flex flex-col items-center justify-center p-6 rounded-2xl hover:text-amber-600 transition-colors group">
+        <div className="w-12 h-12 bg-amber-600 rounded-lg shadow-inner mb-3 group-hover:-translate-y-1 transition-transform"></div>
+        <span className="font-black text-slate-800 dark:text-white">Tactile Brown</span>
+        <span className="text-xs text-slate-500 font-bold mt-1">Balanced Bump</span>
+      </button>
+      <button onClick={withSound(null, 'blue')} className="neumo-out flex flex-col items-center justify-center p-6 rounded-2xl hover:text-blue-500 transition-colors group">
+        <div className="w-12 h-12 bg-blue-500 rounded-lg shadow-inner mb-3 group-hover:-translate-y-1 transition-transform"></div>
+        <span className="font-black text-slate-800 dark:text-white">Clicky Blue</span>
+        <span className="text-xs text-slate-500 font-bold mt-1">Loud & Crisp</span>
+      </button>
+      <button onClick={withSound(null, 'black')} className="neumo-out flex flex-col items-center justify-center p-6 rounded-2xl hover:text-slate-900 dark:hover:text-slate-400 transition-colors group">
+        <div className="w-12 h-12 bg-slate-800 rounded-lg shadow-inner mb-3 group-hover:-translate-y-1 transition-transform"></div>
+        <span className="font-black text-slate-800 dark:text-white">Heavy Black</span>
+        <span className="text-xs text-slate-500 font-bold mt-1">Deep Thock</span>
+      </button>
+    </div>
+  </div>
+);
+
+const HomeProductCard = ({ product, handleProductClick, showToast }) => (
+  <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-xl rounded-[2.5rem] p-4 border border-white/60 dark:border-slate-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] dark:shadow-none hover:shadow-[0_15px_40px_0_rgba(31,38,135,0.15)] hover:-translate-y-2 transition-all duration-300 flex flex-col group cursor-pointer" onClick={withSound(() => handleProductClick(product))}>
+    <div className="relative h-60 w-full rounded-[2rem] overflow-hidden mb-4 shadow-inner dark:shadow-black/50 bg-slate-200 dark:bg-slate-700">
+      <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+      <div className="absolute top-3 left-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg px-4 py-1.5 rounded-full text-xs font-black text-slate-800 dark:text-white border border-white/50 dark:border-slate-600/50 shadow-md">{product.condition}</div>
+      <button onClick={(e) => { e.stopPropagation(); withSound(() => showToast("❤️ Added to favorites!"))(e); }} className="absolute top-3 right-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg p-2 rounded-full border border-white/50 dark:border-slate-600/50 hover:bg-pink-100 dark:hover:bg-pink-900 transition-colors">
+        <Heart className="h-4 w-4 text-pink-500" />
+      </button>
+    </div>
+    <div className="px-2 flex flex-col flex-1">
+      <h3 className="text-lg font-bold text-slate-800 dark:text-white line-clamp-2 leading-tight mb-1">{product.title}</h3>
+      <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-500 mb-4">₹{product.price.toLocaleString('en-IN')}</div>
+      <div className="mt-auto flex justify-between items-center text-sm font-semibold text-slate-500 dark:text-slate-400">
+        <span className="flex items-center gap-1"><User className="h-4 w-4"/> {product.seller}</span>
+      </div>
+    </div>
+  </div>
+);
+
+const SearchProductCard = ({ product, handleProductClick }) => (
+  <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-[2rem] p-3 border border-white/60 dark:border-slate-700/50 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex gap-4 cursor-pointer group" onClick={withSound(() => handleProductClick(product))}>
+    <div className="relative h-32 w-32 rounded-[1.5rem] overflow-hidden flex-shrink-0 shadow-inner dark:shadow-black/50 bg-slate-200 dark:bg-slate-700">
+      <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+      <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur text-white px-2 py-0.5 rounded-md text-[10px] font-bold">{product.category}</div>
+    </div>
+    <div className="flex flex-col flex-1 justify-center py-1 pr-2">
+      <h3 className="text-lg font-black text-slate-800 dark:text-white line-clamp-1 mb-1">{product.title}</h3>
+      <div className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">{product.condition} • {product.seller}</div>
+      <div className="mt-auto flex justify-between items-center">
+        <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-500">₹{product.price.toLocaleString('en-IN')}</span>
+        <div className="h-8 w-8 rounded-full bg-[#e0e5ec] dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-white group-hover:bg-pink-500 group-hover:text-white transition-colors">
+          <ArrowRight className="h-4 w-4" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const HomeView = ({ products, setView, setActiveCategory, handleProductClick, showToast }) => {
+  const sellersRef = useRef(null);
+  
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+      <div className="text-center mb-16 pt-8">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/40 dark:bg-slate-800/40 backdrop-blur-md border border-white/50 dark:border-slate-700/50 text-sm font-bold text-slate-700 dark:text-slate-200 mb-6 shadow-sm">
+          <Sparkles className="h-4 w-4 text-pink-500" /> Voted #1 for Gen-Z Techies
+        </div>
+        <h1 className="text-[12vw] sm:text-8xl lg:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 tracking-tighter uppercase leading-none transform hover:scale-[1.02] transition-transform duration-500 drop-shadow-sm mb-4">
+          Upgrade<br/>Your<br/>Workspace.
+        </h1>
+        <p className="text-xl sm:text-2xl text-slate-600 dark:text-slate-400 font-medium max-w-2xl mx-auto mt-6">
+          Buy, sell, and flex premium desk setups. No cap.
+        </p>
+      </div>
+
+      <div className="flex justify-between items-end mb-6 px-2">
+        <h2 className="text-3xl font-black text-slate-800 dark:text-white">Fresh Drops 🔥</h2>
+        <button onClick={withSound(() => setView('search'))} className="text-pink-500 font-bold hover:underline">View All</button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-8 mb-24">
+        {products.slice(0, 6).map(product => <HomeProductCard key={product.id} product={product} handleProductClick={handleProductClick} showToast={showToast} />)}
+      </div>
+
+      <div className="mb-24">
+        <h2 className="text-3xl sm:text-4xl font-black text-slate-800 dark:text-white mb-8">Shop by Vibe 🎨</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {[
+            {name: "Thocky Keebs", img: "1595225476474-87563907a212", cat: "Keyboards"}, 
+            {name: "Clean Desks", img: "1518455027359-f3f8164ba6bd", cat: "Furniture"}, 
+            {name: "Crisp Audio", img: "1618366712010-f4ae9c647dcb", cat: "Audio"}, 
+            {name: "RGB Lighting", img: "1550745165-9bc0b252726f", cat: "Lighting"}
+          ].map(c => (
+            <div key={c.name} onClick={withSound(() => { setView('search'); setActiveCategory(c.cat); })} className="relative h-48 rounded-[2.5rem] overflow-hidden cursor-pointer group shadow-lg">
+              <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors z-10"></div>
+              <img src={`https://images.unsplash.com/photo-${c.img}?auto=format&fit=crop&w=600&q=80`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={c.name} />
+              <div className="absolute bottom-4 left-4 z-20">
+                <h3 className="text-white font-black text-xl">{c.name}</h3>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-24 bg-white/30 dark:bg-slate-800/30 backdrop-blur-xl rounded-[3rem] p-8 md:p-12 border border-white/50 dark:border-slate-700/50 shadow-xl">
+        <h2 className="text-3xl sm:text-4xl font-black text-center text-slate-800 dark:text-white mb-12">How SetupMarket Works 🛠️</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+           <div className="hidden md:block absolute top-1/2 left-1/4 right-1/4 h-1 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-cyan-500/20 -translate-y-1/2 rounded-full"></div>
+           <div className="flex flex-col items-center text-center relative z-10">
+              <div className="w-20 h-20 bg-[#e0e5ec] dark:bg-slate-800 rounded-full flex items-center justify-center shadow-[6px_6px_12px_#c3c8cf,-6px_-6px_12px_#fdffff] dark:shadow-[6px_6px_12px_#0f172a,-6px_-6px_12px_#334155] mb-6 text-pink-500"><Search className="h-8 w-8" /></div>
+              <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">1. Find Your Vibe</h3>
+              <p className="text-slate-600 dark:text-slate-400 font-medium">Browse thousands of premium, community-vetted desk items.</p>
+           </div>
+           <div className="flex flex-col items-center text-center relative z-10">
+              <div className="w-20 h-20 bg-[#e0e5ec] dark:bg-slate-800 rounded-full flex items-center justify-center shadow-[6px_6px_12px_#c3c8cf,-6px_-6px_12px_#fdffff] dark:shadow-[6px_6px_12px_#0f172a,-6px_-6px_12px_#334155] mb-6 text-purple-500"><ShieldCheck className="h-8 w-8" /></div>
+              <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">2. Secure Payment</h3>
+              <p className="text-slate-600 dark:text-slate-400 font-medium">Funds are held in escrow until the item arrives exactly as described.</p>
+           </div>
+           <div className="flex flex-col items-center text-center relative z-10">
+              <div className="w-20 h-20 bg-[#e0e5ec] dark:bg-slate-800 rounded-full flex items-center justify-center shadow-[6px_6px_12px_#c3c8cf,-6px_-6px_12px_#fdffff] dark:shadow-[6px_6px_12px_#0f172a,-6px_-6px_12px_#334155] mb-6 text-cyan-500"><Rocket className="h-8 w-8" /></div>
+              <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">3. Level Up</h3>
+              <p className="text-slate-600 dark:text-slate-400 font-medium">Upgrade your workspace and flex your new setup.</p>
+           </div>
+        </div>
+      </div>
+
+      <SwitchTester />
+
+      <div className="mb-24">
+        <h2 className="text-3xl sm:text-4xl font-black text-slate-800 dark:text-white mb-8">Top Rated Sellers 🏆</h2>
+        <div className="relative group">
+          <button onClick={withSound(() => scrollContainer(sellersRef, 'left'))} className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-white/90 dark:bg-slate-800/90 backdrop-blur p-3 rounded-full shadow-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:text-pink-500 text-slate-800 dark:text-white hidden md:block"><ChevronLeft className="h-6 w-6" /></button>
+          <div ref={sellersRef} className="flex overflow-x-auto gap-6 pb-6 no-scrollbar px-2 scroll-smooth">
+             {[ 
+               {name: "TechVibes99", img: "Felix", sales: 142}, 
+               {name: "KeebNerd", img: "Aneka", sales: 89}, 
+               {name: "DeskSpaces", img: "Jude", sales: 304}, 
+               {name: "AudioGod", img: "Milo", sales: 56},
+               {name: "CableModder", img: "Leo", sales: 211}
+             ].map(seller => (
+               <div key={seller.name} className="flex-shrink-0 w-64 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-[2.5rem] p-6 border border-white/60 dark:border-slate-700/50 text-center hover:-translate-y-2 transition-transform duration-300 shadow-lg">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${seller.img}&backgroundColor=e0e5ec`} className="w-24 h-24 mx-auto rounded-full shadow-inner mb-4 bg-white dark:bg-slate-900 p-1" alt={seller.name} />
+                  <h3 className="font-black text-lg text-slate-800 dark:text-white">{seller.name}</h3>
+                  <div className="text-pink-500 font-bold text-sm mb-6"><Award className="inline h-4 w-4 mr-1"/> {seller.sales} Sales</div>
+                  <button onClick={withSound(() => showToast(`Opening ${seller.name}'s shop...`))} className="w-full neumo-out py-3 rounded-xl text-slate-600 dark:text-slate-300 font-bold hover:text-pink-500 transition-colors">View Shop</button>
+               </div>
+             ))}
+          </div>
+          <button onClick={withSound(() => scrollContainer(sellersRef, 'right'))} className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-white/90 dark:bg-slate-800/90 backdrop-blur p-3 rounded-full shadow-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:text-pink-500 text-slate-800 dark:text-white hidden md:block"><ChevronRight className="h-6 w-6" /></button>
+        </div>
+      </div>
+
+      <div className="mb-12">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-800 dark:text-white mb-4">Trusted by Setup Enthusiasts 🤝</h2>
+          <p className="text-slate-600 dark:text-slate-400 font-medium">Join thousands of techies trading premium gear safely and securely.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {testimonials.map(t => (
+             <div key={t.id} className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-xl rounded-[2.5rem] p-8 border border-white/60 dark:border-slate-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] dark:shadow-none hover:-translate-y-2 transition-transform duration-300 flex flex-col">
+                <div className="flex items-center gap-1 mb-6">
+                   {[...Array(t.rating)].map((_, i) => <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400 drop-shadow-sm" />)}
+                </div>
+                <p className="text-slate-700 dark:text-slate-300 font-medium mb-8 text-lg italic flex-1">"{t.text}"</p>
+                <div className="flex items-center gap-4 mt-auto">
+                   <img src={t.avatar} alt={t.name} className="w-14 h-14 rounded-full bg-white dark:bg-slate-900 object-cover shadow-inner p-1" />
+                   <div>
+                      <div className="font-black text-slate-800 dark:text-white">{t.name}</div>
+                      <div className="text-sm font-bold text-slate-500 dark:text-slate-400">{t.handle}</div>
+                   </div>
+                </div>
+             </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SearchView = ({ searchQuery, setSearchQuery, activeCategory, setActiveCategory, filteredProducts, handleProductClick }) => (
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10 min-h-screen">
+    <h1 className="text-4xl font-black text-slate-800 dark:text-white mb-8">Explore Listings 🔍</h1>
+
+    <div className="relative group mb-10 sm:hidden">
+       <Search className="absolute inset-y-0 left-6 top-1/2 -translate-y-1/2 h-7 w-7 text-slate-400 dark:text-slate-500" />
+       <input
+         type="text"
+         className="w-full pl-16 pr-6 py-5 rounded-[2rem] neumo-in text-slate-800 dark:text-white outline-none transition-all placeholder-slate-400 font-bold text-xl"
+         placeholder="Search setups..."
+         value={searchQuery}
+         onChange={(e) => setSearchQuery(e.target.value)}
+       />
+    </div>
+
+    <div className="flex flex-wrap justify-center gap-4 mb-8 px-2">
+      {categories.map(cat => (
+        <button key={cat} onClick={withSound(() => setActiveCategory(cat))} className={`px-6 py-3 rounded-[2rem] text-sm sm:text-base font-black transition-all ${activeCategory === cat ? 'neumo-in text-pink-500' : 'neumo-out text-slate-500 dark:text-slate-400 hover:text-pink-400'}`}>
+          {cat}
+        </button>
+      ))}
+    </div>
+
+    <div className="mb-4 text-slate-500 dark:text-slate-400 font-bold">
+      Found {filteredProducts.length} items {searchQuery && `matching "${searchQuery}"`}
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-32">
+      {filteredProducts.map(product => <SearchProductCard key={product.id} product={product} handleProductClick={handleProductClick} />)}
+      {filteredProducts.length === 0 && (
+        <div className="col-span-full py-20 text-center">
+          <h2 className="text-2xl font-bold text-slate-500 dark:text-slate-400">No vibes found. Try searching for "Kreo" or "Monitor".</h2>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const ProductDetailView = ({ selectedProduct, setView, handleAddToCart, showToast }) => {
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const galleryRef = useRef(null);
+
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedProduct]);
+
+  if (!selectedProduct) return null;
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-12 relative z-10 mb-32 min-h-screen">
+      <button onClick={withSound(() => setView('home'))} className="flex items-center text-slate-500 dark:text-slate-300 font-bold hover:text-pink-500 mb-8 transition-colors bg-white/30 dark:bg-slate-800/50 backdrop-blur-md px-6 py-3 rounded-full border border-white/40 dark:border-slate-700/50 w-fit shadow-sm">
+        <Home className="h-5 w-5 mr-2" /> Back to Feed
+      </button>
+
+      <div className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-2xl rounded-[3rem] border border-white/60 dark:border-slate-700/50 shadow-2xl overflow-hidden p-4 md:p-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+          <div className="flex flex-col gap-4">
+            <div className="h-[350px] md:h-[450px] relative rounded-[2.5rem] overflow-hidden shadow-inner dark:shadow-black/50 bg-slate-200 dark:bg-slate-700">
+              <img src={selectedProduct.images[activeImageIndex]} alt={selectedProduct.title} className="w-full h-full object-cover transition-opacity duration-500" />
+            </div>
+            {selectedProduct.images.length > 1 && (
+              <div className="relative group">
+                <button onClick={withSound(() => scrollContainer(galleryRef, 'left'))} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 dark:bg-slate-800/90 backdrop-blur p-1.5 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all hover:text-pink-500 text-slate-800 dark:text-white">
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <div ref={galleryRef} className="flex gap-4 overflow-x-auto pb-2 no-scrollbar px-2 scroll-smooth">
+                  {selectedProduct.images.map((img, idx) => (
+                    <button key={idx} onClick={withSound(() => setActiveImageIndex(idx))} className={`h-20 w-20 md:h-24 md:w-24 rounded-[1.5rem] overflow-hidden flex-shrink-0 border-4 transition-all duration-300 ${activeImageIndex === idx ? 'border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.4)] scale-105' : 'border-transparent opacity-60 hover:opacity-100 hover:scale-105'}`}>
+                      <img src={img} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+                <button onClick={withSound(() => scrollContainer(galleryRef, 'right'))} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 dark:bg-slate-800/90 backdrop-blur p-1.5 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all hover:text-pink-500 text-slate-800 dark:text-white">
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex flex-col justify-center px-4">
+            <div className="inline-flex items-center space-x-2 text-sm font-bold text-slate-500 dark:text-slate-300 mb-4 bg-white/40 dark:bg-slate-900/40 px-4 py-2 rounded-full w-fit border border-white/50 dark:border-slate-700/50">
+              <span>{selectedProduct.category}</span><ChevronRight className="h-4 w-4" /><span className="text-pink-500">{selectedProduct.condition}</span>
+            </div>
+            <h1 className="text-4xl md:text-5xl font-black text-slate-800 dark:text-white mb-4 tracking-tight">{selectedProduct.title}</h1>
+            <div className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-cyan-500 mb-6 drop-shadow-sm">
+              ₹{selectedProduct.price.toLocaleString('en-IN')}
+            </div>
+            <p className="text-lg text-slate-600 dark:text-slate-300 font-medium leading-relaxed mb-8">{selectedProduct.description}</p>
+            <div className="flex gap-4 mt-auto">
+              <button onClick={withSound(() => handleAddToCart(selectedProduct))} className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-8 py-5 rounded-full font-black text-xl transition-all shadow-lg hover:shadow-pink-500/30 transform hover:-translate-y-1 flex justify-center items-center gap-3">
+                <ShoppingCart className="h-6 w-6" /> Cop This
+              </button>
+              <button onClick={withSound(() => showToast("💬 Sliding into DMs..."))} className="px-8 py-5 rounded-full font-black text-xl neumo-out text-slate-600 dark:text-slate-300 transition-all hover:text-pink-500">
+                DM Seller
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SellView = ({ setView, handleListProduct }) => (
+  <div className="max-w-3xl mx-auto px-4 py-12 relative z-10 mb-32 min-h-screen">
+    <div className="flex justify-between items-center mb-8 bg-white/40 dark:bg-slate-800/50 backdrop-blur-md px-8 py-4 rounded-full border border-white/50 dark:border-slate-700/50 shadow-sm">
+      <h1 className="text-3xl font-black text-slate-800 dark:text-white">Drop a Listing 🚀</h1>
+      <button onClick={withSound(() => setView('home'))} className="text-slate-500 dark:text-slate-400 hover:text-pink-500 transition-colors"><X className="h-8 w-8" /></button>
+    </div>
+
+    <form onSubmit={withSound(handleListProduct)} className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-2xl p-8 md:p-12 rounded-[3rem] shadow-2xl border border-white/60 dark:border-slate-700/50">
+      <div className="space-y-8">
+        <div><label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Listing Title</label><input required type="text" name="title" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none transition-all font-bold" placeholder="e.g., Kreo Mechanical Keyboard" /></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div><label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Price (₹)</label><input required type="number" step="1" name="price" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none transition-all font-bold" placeholder="0" /></div>
+          <div><label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Category</label>
+            <select name="category" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none transition-all font-bold appearance-none">
+              {categories.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+        <div><label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Primary Image URL (Optional)</label><input type="url" name="image" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none transition-all font-bold" placeholder="https://..." /></div>
+        <div><label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">The Vibes (Description)</label><textarea required name="description" rows="4" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none transition-all font-bold resize-none" placeholder="Is it pristine? Is it scuffed? Let 'em know..."></textarea></div>
+        <button type="submit" className="w-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 hover:from-pink-600 hover:to-cyan-600 text-white font-black py-5 rounded-full transition-all text-xl shadow-xl transform hover:-translate-y-1">Publish Listing ✨</button>
+      </div>
+    </form>
+  </div>
+);
+
+const CartView = ({ cart, cartTotal, setView, handleRemoveFromCart, showToast }) => (
+  <div className="max-w-5xl mx-auto px-4 py-12 relative z-10 mb-32 min-h-screen">
+    <div className="flex justify-between items-center mb-8"><h1 className="text-4xl font-black text-slate-800 dark:text-white">Your Cart 🛍️</h1></div>
+    {cart.length === 0 ? (
+      <div className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-2xl p-16 text-center rounded-[3rem] border border-white/60 dark:border-slate-700/50 shadow-xl">
+        <Package className="h-24 w-24 text-pink-300 mx-auto mb-6" />
+        <h2 className="text-3xl font-black text-slate-800 dark:text-white mb-4">It's giving... empty.</h2>
+        <button onClick={withSound(() => setView('search'))} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-8 py-4 rounded-full font-black text-lg shadow-lg transform hover:-translate-y-1 transition-all">Start Browsing</button>
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          {cart.map((item, index) => (
+            <div key={index} className="flex p-4 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-[2rem] border border-white/60 dark:border-slate-700/50 shadow-lg gap-6 items-center">
+              <img src={item.images[0]} alt={item.title} className="w-32 h-32 object-cover rounded-[1.5rem] shadow-inner dark:shadow-black/50" />
+              <div className="flex-1">
+                <h3 className="font-black text-xl text-slate-800 dark:text-white mb-1">{item.title}</h3>
+                <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-3">By {item.seller}</p>
+                <div className="flex justify-between items-center">
+                  <span className="font-black text-2xl text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-500">₹{item.price.toLocaleString('en-IN')}</span>
+                  <button onClick={withSound(() => handleRemoveFromCart(index))} className="neumo-out text-red-500 px-4 py-2 rounded-full font-bold transition-all">Remove</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl p-8 rounded-[3rem] border border-white/60 dark:border-slate-700/50 shadow-2xl h-fit">
+          <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-6">The Damage 💸</h3>
+          <div className="space-y-4 mb-8 font-bold text-slate-600 dark:text-slate-300">
+            <div className="flex justify-between"><span>Subtotal ({cart.length} items)</span><span>₹{cartTotal.toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span>GST (18%)</span><span>₹{(cartTotal * 0.18).toLocaleString('en-IN', {maximumFractionDigits: 0})}</span></div>
+            <div className="border-t-2 border-slate-200/50 dark:border-slate-700/50 pt-4 flex justify-between font-black text-2xl text-slate-800 dark:text-white"><span>Total</span><span>₹{(cartTotal * 1.18).toLocaleString('en-IN', {maximumFractionDigits: 0})}</span></div>
+          </div>
+          <button onClick={withSound(() => showToast("💳 Secure checkout initialized..."))} className="w-full bg-gradient-to-r from-pink-500 to-cyan-500 text-white font-black py-5 rounded-full shadow-lg transform hover:-translate-y-1 transition-all text-xl">Checkout Now</button>
+        </div>
+      </div>
+    )}
+  </div>
+);
+
+const AuthView = ({ setAccountType, setUserProfile, setIsLoggedIn, setView, showToast }) => {
+  const [isLogin, setIsLogin] = useState(false);
+  const [tempType, setTempType] = useState('Both');
+
+  const handleAuth = (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const email = formData.get('email');
+    const rawUsername = formData.get('username') || email.split('@')[0];
+    const username = rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
+
+    setUserProfile({
+      username,
+      email,
+      shopName: formData.get('shopName') || '',
+      upiId: formData.get('upiId') || ''
+    });
+
+    setAccountType(tempType);
+    setIsLoggedIn(true);
+    setView('home'); // Go to home marketplace after auth
+    showToast(`🎉 Welcome to SetupMarket, ${username}!`);
+  };
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-20 relative z-10 w-full flex flex-col justify-center">
+      <div className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-2xl border border-white/60 dark:border-slate-700/50 rounded-[3rem] p-8 md:p-12 shadow-2xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-black text-slate-800 dark:text-white mb-2">{isLogin ? 'Welcome Back 👋' : 'Join the Vibe ✨'}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">{isLogin ? 'Log in to your account.' : 'Set up your profile to start trading setups.'}</p>
+        </div>
+
+        <form onSubmit={withSound(handleAuth)} className="space-y-6">
+          {!isLogin && (
+            <>
+              <div>
+                <label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">I am here to...</label>
+                <div className="grid grid-cols-3 gap-4">
+                  {['Buyer', 'Seller', 'Both'].map(type => (
+                    <button
+                      key={type} type="button" onClick={withSound(() => setTempType(type))}
+                      className={`py-3 rounded-2xl font-black transition-all ${tempType === type ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg' : 'neumo-out text-slate-500 dark:text-slate-400 hover:text-pink-400'}`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Username</label>
+                <input required type="text" name="username" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none font-bold" placeholder="@setup_god" />
+              </div>
+
+              {(tempType === 'Seller' || tempType === 'Both') && (
+                <div className="space-y-6 mt-6 p-6 border-2 border-pink-500/20 bg-pink-500/5 rounded-[2rem]">
+                  <h3 className="font-black text-pink-500 mb-2 flex items-center gap-2"><BadgeCheck className="h-5 w-5"/> Seller Details</h3>
+                  <div>
+                    <label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Store/Shop Name</label>
+                    <input required type="text" name="shopName" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none font-bold" placeholder="e.g., KeebMods India" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Payout UPI ID</label>
+                    <input required type="text" name="upiId" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none font-bold" placeholder="yourname@upi" />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          <div>
+            <label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Email</label>
+            <input required type="email" name="email" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none font-bold" placeholder="you@example.com" />
+          </div>
+          <div>
+            <label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide">Password</label>
+            <input required type="password" name="password" className="w-full p-4 rounded-2xl neumo-in text-slate-800 dark:text-white outline-none font-bold" placeholder="••••••••" />
+          </div>
+
+          <button type="submit" className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-black py-4 rounded-full transition-all text-xl shadow-lg transform hover:-translate-y-1 mt-4">
+            {isLogin ? 'Enter SetupMarket' : 'Create Account'}
+          </button>
+        </form>
+
+        <div className="mt-8 text-center">
+          <button onClick={withSound(() => setIsLogin(!isLogin))} className="text-slate-500 dark:text-slate-400 font-bold hover:text-pink-500 transition-colors">
+            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ProfileView = ({ accountType, userProfile, setIsLoggedIn, setView, showToast }) => (
+  <div className="max-w-4xl mx-auto px-4 py-12 relative z-10 mb-32 min-h-screen">
+      <div className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-2xl border border-white/60 dark:border-slate-700/50 rounded-[3rem] p-8 md:p-16 shadow-2xl flex flex-col items-center text-center">
+        <div className="relative">
+          <div className="w-40 h-40 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-500 p-1.5 shadow-xl mb-6">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=GenZ&backgroundColor=e0e5ec" alt="Avatar" className="w-full h-full bg-white dark:bg-slate-900 rounded-full object-cover" />
+          </div>
+          <div className="absolute bottom-6 right-0 bg-white dark:bg-slate-800 rounded-full p-1 shadow-md">
+            <BadgeCheck className="h-8 w-8 text-blue-500" />
+          </div>
+        </div>
+        
+        <h1 className="text-4xl md:text-5xl font-black text-slate-800 dark:text-white mb-2">Main Character Energy ✨</h1>
+        
+        <div className="flex flex-col items-center gap-2 text-lg text-slate-500 dark:text-slate-400 font-bold mb-4">
+          <div className="flex items-center gap-4">
+            <span>{userProfile.username}</span> • <span className="flex items-center gap-1"><MapPin className="h-4 w-4"/> Bangalore, IN</span>
+          </div>
+          <span className="text-sm font-medium">{userProfile.email}</span>
+          {(accountType === 'Seller' || accountType === 'Both') && userProfile.shopName && (
+             <span className="text-sm font-black text-pink-500 mt-1">🏪 {userProfile.shopName}</span>
+          )}
+        </div>
+        
+        <div className="bg-pink-100 dark:bg-pink-900/40 text-pink-600 dark:text-pink-400 px-4 py-1.5 rounded-full font-black text-sm uppercase mb-6 tracking-wide border border-pink-200 dark:border-pink-800">
+          Account Type: {accountType}
+        </div>
+
+        <p className="text-slate-600 dark:text-slate-300 font-medium max-w-lg mb-10 italic">
+          "Mech keeb enthusiast and ultrawide advocate. I only buy and sell premium, aesthetic gear. No lowballers."
+        </p>
+        
+        <div className="flex gap-6 w-full max-w-lg">
+            <div className="flex-1 neumo-in rounded-[2rem] p-6">
+              <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">12</div>
+              <div className="text-sm font-black text-slate-500 dark:text-slate-400 mt-1 uppercase">Items Snagged</div>
+            </div>
+            <div className="flex-1 neumo-in rounded-[2rem] p-6">
+              <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-500">₹3.5L</div>
+              <div className="text-sm font-black text-slate-500 dark:text-slate-400 mt-1 uppercase">Bag Secured</div>
+            </div>
+        </div>
+
+        <button onClick={withSound(() => { setView('rare-collection'); window.scrollTo(0, 0); })} className="mt-10 w-full max-w-lg bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black py-5 rounded-[2rem] shadow-[0_0_30px_rgba(245,158,11,0.4)] hover:shadow-[0_0_40px_rgba(245,158,11,0.6)] transform hover:-translate-y-1 transition-all flex items-center justify-center gap-3 text-xl border-2 border-amber-300">
+          <Gem className="h-7 w-7" /> Enter The Vault (Rare Bidding)
+        </button>
+
+        <button onClick={withSound(() => { setIsLoggedIn(false); setView('home'); showToast("Logged out successfully"); })} className="mt-8 text-slate-500 dark:text-slate-400 font-bold hover:text-red-500 transition-colors">
+          Log Out
+        </button>
+      </div>
+  </div>
+);
+
+const RareCollectionView = ({ setView, showToast }) => (
+  <div className="max-w-7xl mx-auto px-4 py-12 relative z-10 mb-32 min-h-screen">
+      <button onClick={withSound(() => setView('profile'))} className="flex items-center text-slate-500 dark:text-slate-300 font-bold hover:text-amber-500 mb-8 transition-colors bg-white/30 dark:bg-slate-800/50 backdrop-blur-md px-6 py-3 rounded-full border border-white/40 dark:border-slate-700/50 w-fit shadow-sm">
+        <User className="h-5 w-5 mr-2" /> Back to Profile
+      </button>
+
+      <div className="text-center mb-16">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-tr from-amber-400 to-orange-600 mb-6 shadow-[0_0_40px_rgba(245,158,11,0.5)]">
+          <Gem className="h-10 w-10 text-white" />
+        </div>
+        <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 tracking-tighter uppercase mb-4">
+          The Vault
+        </h1>
+        <p className="text-xl text-slate-600 dark:text-slate-300 font-bold max-w-2xl mx-auto">
+          Exclusive live auctions for the rarest desk setups and enthusiast gear on the planet.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+        {rareItems.map(item => (
+          <div key={item.id} className="bg-slate-900 rounded-[3rem] p-4 border-2 border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)] flex flex-col group relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 to-transparent pointer-events-none"></div>
+            <div className="relative h-72 w-full rounded-[2.5rem] overflow-hidden mb-6 shadow-inner">
+              <div className="absolute top-4 left-4 bg-red-500/90 backdrop-blur text-white px-4 py-2 rounded-full text-sm font-black flex items-center gap-2 z-10 animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-white"></span> Live Auction
+              </div>
+              <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-90" />
+            </div>
+            <div className="px-6 pb-6 flex flex-col flex-1 relative z-10">
+              <h3 className="text-3xl font-black text-white mb-2">{item.title}</h3>
+              <p className="text-slate-400 font-medium mb-8 leading-relaxed">{item.description}</p>
+              <div className="flex justify-between items-end mb-8 bg-black/40 p-6 rounded-3xl border border-white/5">
+                <div>
+                  <div className="text-slate-500 font-bold text-sm uppercase mb-1">Current Highest Bid</div>
+                  <div className="text-4xl font-black text-amber-400">₹{item.currentBid.toLocaleString('en-IN')}</div>
+                  <div className="text-sm font-bold text-slate-400 mt-2">{item.bids} Bids placed</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-slate-500 font-bold text-sm uppercase mb-1">Ends In</div>
+                  <div className="text-2xl font-black text-white font-mono">{item.endsIn}</div>
+                </div>
+              </div>
+              <button onClick={withSound(() => showToast(`💰 Outbid! Your bid for ₹${(item.currentBid + 5000).toLocaleString('en-IN')} is now active.`))} className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-black py-5 rounded-full transition-all text-xl shadow-lg hover:shadow-orange-500/40 transform hover:-translate-y-1 flex items-center justify-center gap-3">
+                <Gavel className="h-6 w-6" /> Place Bid (+₹5,000)
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+  </div>
+);
+
+const AboutView = () => (
+  <div className="max-w-6xl mx-auto px-4 py-12 relative z-10 mb-32 min-h-screen">
+      <div className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-2xl border border-white/60 dark:border-slate-700/50 rounded-[3rem] p-8 md:p-16 shadow-2xl flex flex-col items-center text-center mb-16">
+        <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-pink-500 to-purple-500 p-1.5 shadow-xl mb-8 flex items-center justify-center"><Sparkles className="h-10 w-10 text-white" /></div>
+        <h1 className="text-4xl md:text-5xl font-black text-slate-800 dark:text-white mb-6 tracking-tight">About SetupMarket 🚀</h1>
+        <p className="text-lg md:text-xl text-slate-600 dark:text-slate-300 font-medium leading-relaxed mb-10 max-w-3xl">We built SetupMarket because we were tired of generic marketplaces. We wanted a dedicated, aesthetic space for tech enthusiasts to buy, sell, and flex their desk setups. No cap. Just pure vibes.</p>
+      </div>
+  </div>
+);
+
+const Footer = ({ setView, setActiveCategory }) => (
+  <footer className="w-full pt-16 pb-32 relative z-10 bg-slate-800 dark:bg-[#0a0f18] text-slate-400 dark:text-slate-500 transition-colors duration-500 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] mt-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-2"><Monitor className="h-6 w-6 text-pink-500" /><span className="text-2xl font-black text-white">Setup<span className="text-pink-500">Market</span></span></div>
+              <p className="text-sm font-medium leading-relaxed">The ultimate marketplace for techies. Built for the modern aesthetic.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Shop Vibes</h4>
+              <ul className="space-y-3 text-sm font-medium">
+                  <li><button onClick={withSound(() => { setView('search'); setActiveCategory('Keyboards'); })} className="hover:text-pink-500 transition-colors">Mechanical Keyboards</button></li>
+                  <li><button onClick={withSound(() => { setView('search'); setActiveCategory('Customization'); })} className="hover:text-cyan-500 transition-colors">Desk Customizations</button></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Support</h4>
+              <ul className="space-y-3 text-sm font-medium">
+                  <li><button onClick={withSound(() => { setView('about'); })} className="hover:text-yellow-400 text-white font-bold transition-colors">About Us 🚀</button></li>
+                  <li><button className="hover:text-pink-500 transition-colors">FAQ & Help Center</button></li>
+              </ul>
+            </div>
+        </div>
+      </div>
+  </footer>
+);
+
+// --- MAIN APP ---
+export default function App() {
+  const [view, setView] = useState('home');
+  const [isDark, setIsDark] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [accountType, setAccountType] = useState('Buyer');
+  const [userProfile, setUserProfile] = useState({ username: '@setup_god', email: '', shopName: '', upiId: '' });
+  const [products, setProducts] = useState(initialProducts);
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [cart, setCart] = useState([]);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [view]);
+
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleProductClick = (product) => {
+    setSelectedProduct(product);
+    setView('product');
+  };
+
+  const handleAddToCart = (product) => {
+    setCart([...cart, product]);
+    showToast(`🛒 Snagged: ${product.title}`);
+  };
+
+  const handleRemoveFromCart = (indexToRemove) => {
+    setCart(cart.filter((_, index) => index !== indexToRemove));
+    showToast(`🗑️ Removed from cart`);
+  };
+
+  const handleListProduct = (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const userImage = formData.get('image');
+    const newProduct = {
+      id: products.length + 1,
+      title: formData.get('title'),
+      price: parseFloat(formData.get('price')),
+      category: formData.get('category'),
+      condition: formData.get('condition'),
+      seller: "@MainCharacter",
+      images: userImage ? [userImage, userImage, userImage] : getSafeImages("1593640408182-31c70c8268f5"),
+      description: formData.get('description')
+    };
+    setProducts([newProduct, ...products]);
+    setView('home');
+    showToast("🚀 Listing dropped successfully!");
+  };
+
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = activeCategory === "All" || p.category === activeCategory;
+    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          p.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  const cartTotal = cart.reduce((sum, item) => sum + item.price, 0);
+
+  return (
+    <div className={`min-h-screen relative overflow-x-hidden font-sans selection:bg-pink-300 transition-colors duration-500 ${isDark ? 'dark bg-[#0f172a]' : 'bg-[#e0e5ec]'}`}>
+      <style>{`
+        .neumo-out { background-color: #e0e5ec; box-shadow: 6px 6px 12px #c3c8cf, -6px -6px 12px #fdffff; }
+        .neumo-in { background-color: #e0e5ec; box-shadow: inset 6px 6px 12px #c3c8cf, inset -6px -6px 12px #fdffff; }
+        .dark .neumo-out { background-color: #1e293b; box-shadow: 6px 6px 12px #0f172a, -6px -6px 12px #334155; }
+        .dark .neumo-in { background-color: #1e293b; box-shadow: inset 6px 6px 12px #0f172a, inset -6px -6px 12px #334155; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        @keyframes gradientShift {
+          0% { transform: rotate(0deg) scale(1); filter: hue-rotate(0deg); }
+          50% { transform: rotate(180deg) scale(1.2); filter: hue-rotate(45deg); }
+          100% { transform: rotate(360deg) scale(1); filter: hue-rotate(0deg); }
+        }
+        .animate-orb-1 { animation: gradientShift 20s infinite linear; }
+        .animate-orb-2 { animation: gradientShift 25s infinite linear reverse; }
+        .animate-orb-3 { animation: gradientShift 30s infinite ease-in-out; }
+      `}</style>
+
+      {/* DYNAMIC ANIMATED BACKGROUND ORBS */}
+      <div className="fixed top-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-pink-400 rounded-full mix-blend-multiply filter blur-[120px] opacity-30 dark:opacity-20 z-0 pointer-events-none animate-orb-1"></div>
+      <div className="fixed top-[20%] right-[-10%] w-[50vw] h-[50vw] bg-cyan-400 rounded-full mix-blend-multiply filter blur-[120px] opacity-30 dark:opacity-20 z-0 pointer-events-none animate-orb-2"></div>
+      <div className="fixed bottom-[-10%] left-[20%] w-[70vw] h-[70vw] bg-purple-400 rounded-full mix-blend-multiply filter blur-[120px] opacity-30 dark:opacity-20 z-0 pointer-events-none animate-orb-3"></div>
+
+      {toast && (
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-2xl px-8 py-4 rounded-full font-black text-slate-800 dark:text-white">{toast}</div>
+        </div>
+      )}
+
+      {!isLoggedIn ? (
+        // --- STRICT AUTHENTICATION GATE ---
+        <div className="relative min-h-screen flex items-center justify-center pt-12 pb-12">
+           <button onClick={withSound(() => setIsDark(!isDark), 'blue')} className="absolute top-6 right-6 flex neumo-out p-3 rounded-full transition-all text-slate-600 dark:text-slate-300 hover:text-pink-500">
+            {isDark ? <Sun className="h-6 w-6 text-yellow-400" /> : <Moon className="h-6 w-6 text-indigo-500" />}
+          </button>
+          <AuthView setAccountType={setAccountType} setUserProfile={setUserProfile} setIsLoggedIn={setIsLoggedIn} setView={setView} showToast={showToast} />
+        </div>
+      ) : (
+        // --- FULL MARKETPLACE ---
+        <>
+          <TopNav view={view} setView={setView} searchQuery={searchQuery} setSearchQuery={setSearchQuery} isDark={isDark} setIsDark={setIsDark} />
+          
+          <main className="min-h-[80vh]">
+            {view === 'home' && <HomeView products={products} setView={setView} setActiveCategory={setActiveCategory} handleProductClick={handleProductClick} showToast={showToast} />}
+            {view === 'search' && <SearchView searchQuery={searchQuery} setSearchQuery={setSearchQuery} activeCategory={activeCategory} setActiveCategory={setActiveCategory} filteredProducts={filteredProducts} handleProductClick={handleProductClick} />}
+            {view === 'product' && <ProductDetailView selectedProduct={selectedProduct} setView={setView} handleAddToCart={handleAddToCart} showToast={showToast} />}
+            {view === 'sell' && <SellView setView={setView} handleListProduct={handleListProduct} />}
+            {view === 'cart' && <CartView cart={cart} cartTotal={cartTotal} setView={setView} handleRemoveFromCart={handleRemoveFromCart} showToast={showToast} />}
+            {view === 'profile' && <ProfileView accountType={accountType} userProfile={userProfile} setIsLoggedIn={setIsLoggedIn} setView={setView} showToast={showToast} />}
+            {view === 'about' && <AboutView />}
+            {view === 'rare-collection' && <RareCollectionView setView={setView} showToast={showToast} />}
+          </main>
+
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-white/40 dark:bg-slate-900/60 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-full px-6 py-4 flex items-center gap-6 sm:gap-10">
+            <button onClick={withSound(() => setView('home'))} className={`p-2 transition-colors ${view === 'home' ? 'text-pink-500' : 'text-slate-600 dark:text-slate-400 hover:text-pink-400'}`}><Home className="h-7 w-7" /></button>
+            <button onClick={withSound(() => setView('search'))} className={`p-2 transition-colors ${view === 'search' ? 'text-cyan-500' : 'text-slate-600 dark:text-slate-400 hover:text-cyan-400'}`}><Search className="h-7 w-7" /></button>
+            <button onClick={withSound(() => setView('sell'))} className="bg-gradient-to-tr from-pink-500 to-purple-500 text-white rounded-full p-4 transform -translate-y-6 shadow-[0_10px_20px_rgba(236,72,153,0.4)] hover:-translate-y-8 transition-all border-4 border-[#e0e5ec] dark:border-[#0f172a]"><PlusCircle className="h-8 w-8" /></button>
+            <button onClick={withSound(() => setView('cart'))} className={`p-2 transition-colors relative ${view === 'cart' ? 'text-purple-500' : 'text-slate-600 dark:text-slate-400 hover:text-purple-400'}`}><ShoppingCart className="h-7 w-7" />
+              {cart.length > 0 && <span className="absolute top-0 right-0 inline-flex items-center justify-center h-5 w-5 text-xs font-black text-white bg-pink-500 rounded-full border-2 border-white dark:border-slate-800 shadow-sm">{cart.length}</span>}
+            </button>
+            <button onClick={withSound(() => setView('profile'))} className={`p-2 transition-colors ${view === 'profile' ? 'text-pink-500' : 'text-slate-600 dark:text-slate-400 hover:text-pink-400'}`}><User className="h-7 w-7" /></button>
+          </div>
+
+          <Footer setView={setView} setActiveCategory={setActiveCategory} />
+        </>
+      )}
+    </div>
+  );
+}
